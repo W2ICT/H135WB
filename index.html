@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<!--
+  EC135 T3H Weight & Balance Calculator
+  SQDN.202, WING 2 RTAF
+  Single-file HTML – deployable on GitHub Pages
+  CDN dependencies (requires internet): Chart.js, jsPDF, jsPDF-AutoTable
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EC135 T3H – W&amp;B | SQDN.202 WING 2 RTAF</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+/* ===================== RESET & BASE ===================== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:Arial,Helvetica,sans-serif;background:#1a2035;color:#e0e6f0;font-size:14px}
+
+/* ===================== LOGIN PAGE ===================== */
+#loginPage{
+  position:fixed;inset:0;z-index:9999;
+  background:radial-gradient(ellipse at 60% 40%,#0d2a5e 0%,#0a1628 60%,#060d1a 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:0;transition:opacity .6s ease;
+}
+#loginPage.fade-out{opacity:0;pointer-events:none}
+
+/* Animated grid background */
+#loginPage::before{
+  content:'';position:absolute;inset:0;
+  background-image:
+    linear-gradient(rgba(79,195,247,.06) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(79,195,247,.06) 1px,transparent 1px);
+  background-size:40px 40px;
+  animation:gridMove 20s linear infinite;
+}
+@keyframes gridMove{from{background-position:0 0}to{background-position:40px 40px}}
+
+/* Scan line */
+#loginPage::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(transparent 50%,rgba(0,0,0,.03) 50%);
+  background-size:100% 4px;
+}
+
+.login-card{
+  position:relative;z-index:1;
+  background:rgba(15,30,60,.85);
+  border:1px solid rgba(79,195,247,.3);
+  border-radius:16px;
+  padding:40px 44px 36px;
+  width:min(400px,90vw);
+  box-shadow:0 0 60px rgba(26,95,168,.4),0 0 120px rgba(0,0,0,.6);
+  backdrop-filter:blur(12px);
+}
+
+/* Emblem */
+.login-emblem{text-align:center;margin-bottom:24px}
+.emblem-ring{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:80px;height:80px;border-radius:50%;
+  background:linear-gradient(135deg,#0d3b7a,#1a5fa8);
+  border:2px solid rgba(79,195,247,.5);
+  box-shadow:0 0 20px rgba(79,195,247,.3);
+  font-size:36px;margin-bottom:12px;
+}
+.login-org{font-size:13px;font-weight:700;color:#4fc3f7;letter-spacing:2px;text-transform:uppercase}
+.login-sub{font-size:11px;color:#607d8b;margin-top:3px;letter-spacing:.5px}
+
+/* Divider */
+.login-divider{height:1px;background:linear-gradient(90deg,transparent,rgba(79,195,247,.3),transparent);margin:20px 0}
+
+.login-form-title{font-size:15px;font-weight:700;color:#fff;text-align:center;margin-bottom:20px;letter-spacing:.3px}
+
+/* Form fields */
+.login-field{margin-bottom:16px;position:relative}
+.login-field label{display:block;font-size:10px;font-weight:700;color:#90caf9;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.login-field .field-icon{
+  position:absolute;left:12px;bottom:10px;font-size:16px;color:#607d8b;pointer-events:none;
+}
+.login-field input{
+  width:100%;padding:10px 40px 10px 38px;
+  background:rgba(10,22,40,.8);border:1px solid #2a3a5c;border-radius:8px;
+  color:#e0e6f0;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s;
+}
+.login-field input:focus{border-color:#4fc3f7;box-shadow:0 0 0 3px rgba(79,195,247,.15)}
+.login-field input::placeholder{color:#374860}
+
+/* Show/hide password toggle */
+.pw-toggle{
+  position:absolute;right:12px;bottom:9px;cursor:pointer;
+  font-size:18px;color:#607d8b;user-select:none;transition:color .2s;padding:2px;
+}
+.pw-toggle:hover{color:#4fc3f7}
+
+/* Error */
+.login-error{font-size:12px;color:#ef5350;text-align:center;margin:-8px 0 10px;min-height:18px}
+
+/* Login button */
+.login-btn{
+  width:100%;padding:12px;border:none;border-radius:8px;
+  background:linear-gradient(135deg,#1a5fa8,#0d3b7a);
+  color:#fff;font-size:14px;font-weight:700;cursor:pointer;
+  letter-spacing:.5px;transition:all .2s;position:relative;overflow:hidden;
+  box-shadow:0 4px 15px rgba(26,95,168,.4);margin-top:4px;
+}
+.login-btn:hover:not(:disabled){background:linear-gradient(135deg,#2070c0,#1a5fa8);transform:translateY(-1px);box-shadow:0 6px 20px rgba(26,95,168,.5)}
+.login-btn:active:not(:disabled){transform:translateY(0)}
+.login-btn:disabled{opacity:.7;cursor:not-allowed}
+
+/* Loading state inside button */
+.btn-spinner{
+  display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;
+  vertical-align:middle;margin-right:8px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Progress bar */
+.login-progress{margin-top:16px;height:3px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;opacity:0;transition:opacity .3s}
+.login-progress.show{opacity:1}
+.login-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#4fc3f7,#1a5fa8);border-radius:3px;transition:width .08s linear}
+
+.login-status{font-size:11px;color:#607d8b;text-align:center;margin-top:8px;min-height:16px;letter-spacing:.3px}
+
+/* ===================== MAIN APP ===================== */
+#mainApp{min-height:100vh;display:flex;flex-direction:column;opacity:0;transition:opacity .5s ease}
+#mainApp.visible{opacity:1}
+
+/* Header */
+.header{
+  background:linear-gradient(135deg,#0d3b7a 0%,#1a5fa8 100%);
+  padding:12px 20px;display:flex;align-items:center;gap:14px;
+  border-bottom:2px solid #2a7fd4;flex-shrink:0;
+}
+.header-logo{font-size:26px;font-weight:900;color:#4fc3f7;letter-spacing:2px;white-space:nowrap}
+.header-title{flex:1;min-width:0}
+.header-title h1{font-size:18px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.header-title p{font-size:11px;color:#90caf9;margin-top:2px}
+.header-actions{display:flex;gap:8px;flex-shrink:0}
+.btn-icon{
+  padding:7px 14px;border-radius:6px;border:1px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.08);color:#e0e6f0;font-size:12px;font-weight:600;
+  cursor:pointer;white-space:nowrap;transition:all .2s;letter-spacing:.3px;
+}
+.btn-icon:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4)}
+.btn-pdf{background:rgba(239,83,80,.15);border-color:rgba(239,83,80,.4);color:#ef9a9a}
+.btn-pdf:hover{background:rgba(239,83,80,.3);border-color:#ef5350;color:#fff}
+.btn-logout{background:rgba(79,195,247,.08);border-color:rgba(79,195,247,.3);color:#90caf9}
+.btn-logout:hover{background:rgba(79,195,247,.2);color:#fff}
+.header-date{font-size:11px;color:#90caf9;text-align:right;white-space:nowrap}
+
+/* Layout */
+.main{display:grid;grid-template-columns:340px 1fr;flex:1;overflow:hidden}
+.sidebar{background:#1e2a42;border-right:1px solid #2a3a5c;padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.content{padding:14px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
+
+/* Cards */
+.card{background:#253354;border:1px solid #2a3a5c;border-radius:8px;overflow:hidden}
+.card-header{background:#1a4a8a;padding:7px 12px;font-weight:700;font-size:11px;color:#90caf9;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+.card-header .dot{width:6px;height:6px;border-radius:50%;background:#4fc3f7;flex-shrink:0}
+.card-body{padding:12px}
+
+/* Form */
+label{display:block;font-size:10px;color:#90caf9;margin-bottom:3px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+select,input[type="number"],input[type="text"],input[type="date"]{
+  width:100%;padding:7px 10px;background:#1a2035;border:1px solid #3a4a6c;border-radius:5px;
+  color:#e0e6f0;font-size:13px;outline:none;transition:border-color .2s;
+}
+select:focus,input:focus{border-color:#4fc3f7;box-shadow:0 0 0 2px rgba(79,195,247,.15)}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.field-full{margin-bottom:8px}
+.field-unit{font-size:10px;color:#607d8b;margin-top:2px;text-align:right}
+
+/* Seats */
+.seat-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px}
+.seat-input{background:#1a2035;border:1px solid #3a4a6c;border-radius:5px;padding:6px 8px}
+.seat-input label{font-size:9px;color:#607d8b;margin-bottom:2px}
+.seat-input input{width:100%;background:transparent;border:none;color:#e0e6f0;font-size:13px;outline:none;padding:0}
+.seat-label-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:3px}
+.seat-label-row span{text-align:center;font-size:9px;color:#607d8b}
+.section-label{font-size:9px;font-weight:700;color:#4fc3f7;text-transform:uppercase;letter-spacing:1px;padding:4px 0 6px;border-bottom:1px solid #2a3a5c;margin-bottom:8px}
+
+/* Toggle */
+.toggle-group{display:flex;gap:5px;margin-bottom:8px}
+.toggle-btn{flex:1;padding:5px;border:1px solid #3a4a6c;border-radius:4px;background:#1a2035;color:#90caf9;cursor:pointer;font-size:10px;text-align:center;transition:all .2s}
+.toggle-btn.active{background:#1a4a8a;border-color:#4fc3f7;color:#fff}
+
+/* Result tiles */
+.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.result-item{background:#1a2035;border-radius:6px;padding:10px 12px;border-left:3px solid #4fc3f7}
+.result-item.warning{border-left-color:#f57c00}
+.result-item.danger{border-left-color:#e53935}
+.result-item.ok{border-left-color:#43a047}
+.result-label{font-size:9px;color:#607d8b;font-weight:700;text-transform:uppercase;margin-bottom:4px;letter-spacing:.3px}
+.result-value{font-size:20px;font-weight:700;color:#e0e6f0;line-height:1}
+.result-unit{font-size:11px;color:#607d8b;font-weight:400}
+.result-sublabel{font-size:10px;color:#607d8b;margin-top:3px}
+
+/* Status */
+.status-banner{padding:10px 16px;border-radius:6px;font-weight:700;font-size:13px;text-align:center;letter-spacing:.5px}
+.status-ok{background:#1b5e20;border:1px solid #43a047;color:#a5d6a7}
+.status-warn{background:#e65100;border:1px solid #f57c00;color:#ffcc80}
+.status-danger{background:#b71c1c;border:1px solid #e53935;color:#ef9a9a}
+
+/* Tables */
+.limit-table{width:100%;border-collapse:collapse;font-size:11px}
+.limit-table th{background:#1a3a6a;color:#90caf9;padding:5px 8px;text-align:left;font-size:10px;text-transform:uppercase}
+.limit-table td{padding:4px 8px;border-bottom:1px solid #2a3a5c}
+.limit-table tr:last-child td{border-bottom:none}
+.w-table{width:100%;border-collapse:collapse;font-size:11px}
+.w-table th{background:#1a3a6a;color:#90caf9;padding:4px 8px;text-align:right;font-size:10px;text-transform:uppercase}
+.w-table th:first-child{text-align:left}
+.w-table td{padding:3px 8px;border-bottom:1px solid #2a3a5c;text-align:right}
+.w-table td:first-child{text-align:left;color:#b0bec5}
+.w-table tr.total td{font-weight:700;color:#fff;background:#1a3a6a}
+.txt-ok{color:#66bb6a;font-weight:700}
+.txt-err{color:#ef5350;font-weight:700}
+.txt-val{color:#fff;font-weight:600}
+
+.chart-container{position:relative;height:400px}
+.info-note{font-size:10px;color:#607d8b;line-height:1.5}
+
+/* Utility */
+.hidden{display:none!important}
+
+/* ===================== PRINT ===================== */
+@media print{
+  #loginPage{display:none!important}
+  #mainApp{opacity:1!important;display:block!important}
+  .header{background:#0d3b7a!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .header-actions,.btn-pdf,.btn-logout{display:none!important}
+  .main{display:grid;grid-template-columns:280px 1fr}
+  body{background:white;color:black;font-size:12px}
+  .card{background:#f5f7fa;border:1px solid #ddd;page-break-inside:avoid}
+  .sidebar{background:white}
+  .content{padding:8px}
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== LOGIN PAGE ==================== -->
+<div id="loginPage">
+  <div class="login-card">
+    <div class="login-emblem">
+      <div class="emblem-ring">✈</div>
+      <div class="login-org">SQDN.202 · WING 2 RTAF</div>
+      <div class="login-sub">EC135 T3H Weight &amp; Balance System</div>
+    </div>
+    <div class="login-divider"></div>
+    <div class="login-form-title">เข้าสู่ระบบ / Sign In</div>
+
+    <div class="login-field">
+      <label>รหัสผ่าน / Password</label>
+      <input type="password" id="loginPass" placeholder="รหัสผ่าน" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <span class="pw-toggle" id="pwToggle" onclick="togglePw()" title="แสดง/ซ่อนรหัสผ่าน">👁</span>
+    </div>
+
+    <div class="login-error" id="loginError"></div>
+
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">เข้าสู่ระบบ</button>
+
+    <div class="login-progress" id="loginProgress">
+      <div class="login-progress-bar" id="loginBar"></div>
+    </div>
+    <div class="login-status" id="loginStatus"></div>
+  </div>
+</div>
+
+<!-- ==================== MAIN APP ==================== -->
+<div id="mainApp" class="hidden">
+
+  <div class="header">
+    <div class="header-logo">H135</div>
+    <div class="header-title">
+      <h1>EC135 T3H — Weight &amp; Balance Calculator</h1>
+      <p>SQDN.202, WING 2 RTAF</p>
+    </div>
+    <div class="header-actions">
+      <button class="btn-icon btn-pdf" onclick="exportPDF()">⬇ Export PDF</button>
+      <button class="btn-icon btn-logout" onclick="doLogout()">⏻ ออกจากระบบ</button>
+    </div>
+    <div class="header-date" id="headerDate"></div>
+  </div>
+
+  <div class="main">
+    <!-- =========== SIDEBAR =========== -->
+    <div class="sidebar">
+
+      <!-- Aircraft & Config -->
+      <div class="card">
+        <div class="card-header"><span class="dot"></span>Aircraft &amp; Configuration</div>
+        <div class="card-body">
+          <div class="field-full">
+            <label>Registration</label>
+            <select id="selAircraft" onchange="onAircraftChange()">
+              <option value="20201">20201 (SN 2126)</option>
+              <option value="20202">20202 (SN 2130)</option>
+              <option value="20203">20203 (SN 2140)</option>
+              <option value="20204">20204 (SN 2155)</option>
+              <option value="20205">20205 (SN 2159)</option>
+              <option value="20206">20206 (SN 2162)</option>
+            </select>
+          </div>
+          <div class="field-full">
+            <label>Configuration</label>
+            <select id="selConfig" onchange="onConfigChange()">
+              <option value="pax">Pax FWD &amp; AFT (Standard)</option>
+              <option value="noPaxAft">No Pax AFT (FWD Only)</option>
+              <option value="cargo">Cargo</option>
+              <option value="hoistLH">Hoist LH</option>
+              <option value="hoistRH">Hoist RH</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <div>
+              <label>Date</label>
+              <input type="date" id="inpDate">
+            </div>
+            <div>
+              <label>Flight #</label>
+              <input type="text" id="inpFlight" placeholder="001">
+            </div>
+          </div>
+          <div id="bemInfo" class="info-note"></div>
+        </div>
+      </div>
+
+      <!-- Crew -->
+      <div class="card">
+        <div class="card-header"><span class="dot"></span>Flight Crew</div>
+        <div class="card-body">
+          <div class="field-row">
+            <div>
+              <label>Pilot (kg)</label>
+              <input type="number" id="inpPilot" value="80" min="0" max="200" step="0.5" oninput="calculate()">
+              <div class="field-unit">RH seat · Lat +390 mm</div>
+            </div>
+            <div>
+              <label>Co-Pilot (kg)</label>
+              <input type="number" id="inpCopilot" value="75" min="0" max="200" step="0.5" oninput="calculate()">
+              <div class="field-unit">LH seat · Lat −390 mm</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAX section -->
+      <div id="secPax" class="card">
+        <div class="card-header"><span class="dot"></span>Passengers</div>
+        <div class="card-body">
+          <div class="section-label">FWD Cabin Seats (1-2-3)</div>
+          <div class="field-full" id="fwdDirRow">
+            <label>FWD Seat Facing</label>
+            <div class="toggle-group">
+              <div class="toggle-btn active" id="btnFwdAft" onclick="setFwdDir('aft')">Against FD — 3331 mm</div>
+              <div class="toggle-btn" id="btnFwdFwd" onclick="setFwdDir('fwd')">In FD — 3455 mm</div>
+            </div>
+          </div>
+          <div class="seat-label-row">
+            <span>S1 RH +479</span><span>S2 CTR 0</span><span>S3 LH −479</span>
+          </div>
+          <div class="seat-grid">
+            <div class="seat-input"><label>S1 kg</label><input type="number" id="pax1" min="0" max="200" step="0.5" placeholder="0" oninput="calculate()"></div>
+            <div class="seat-input"><label>S2 kg</label><input type="number" id="pax2" min="0" max="200" step="0.5" placeholder="0" oninput="calculate()"></div>
+            <div class="seat-input"><label>S3 kg</label><input type="number" id="pax3" min="0" max="200" step="0.5" placeholder="0" oninput="calculate()"></div>
+          </div>
+          <div id="aftRow">
+            <div class="section-label">AFT Cabin Seats (4-5-6)</div>
+            <div class="seat-label-row">
+              <span>S4 RH +408</span><span>S5 CTR 0</span><span>S6 LH −408</span>
+            </div>
+            <div class="seat-grid">
+              <div class="seat-input"><label>S4 kg</label><input type="number" id="pax4" min="0" max="200" step="0.5" placeholder="0" oninput="calculate()"></div>
+              <div class="seat-input"><label>S5 kg</label><input type="number" id="pax5" min="0" max="200" step="0.5" placeholder="0" oninput="calculate()"></div>
+              <div class="seat-input"><label>S6 kg</label><input type="number" id="pax6" min="0" max="200" step="0.5" placeholder="0" oninput="calculate()"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cargo section -->
+      <div id="secCargo" class="card hidden">
+        <div class="card-header"><span class="dot"></span>Cargo Loads</div>
+        <div class="card-body">
+          <div class="info-note" style="margin-bottom:8px">Arms: FWD=3550 · Mid=4250 · AFT=4950 mm</div>
+          <div class="field-row">
+            <div><label>FWD L+R (kg)</label><input type="number" id="cargoFwd" min="0" max="600" step="0.5" placeholder="0" oninput="calculate()"></div>
+            <div><label>Mid L+R (kg)</label><input type="number" id="cargoMid" min="0" max="600" step="0.5" placeholder="0" oninput="calculate()"></div>
+          </div>
+          <div class="field-row">
+            <div><label>AFT L+R (kg)</label><input type="number" id="cargoAft" min="0" max="600" step="0.5" placeholder="0" oninput="calculate()"></div>
+            <div><label>Lat Offset (mm)</label><input type="number" id="cargoLat" value="0" min="-500" max="500" step="1" oninput="calculate()"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hoist section -->
+      <div id="secHoist" class="card hidden">
+        <div class="card-header"><span class="dot"></span>Hoist Operation</div>
+        <div class="card-body">
+          <div id="hoistInfo" class="info-note" style="margin-bottom:8px"></div>
+          <div class="field-row">
+            <div><label>Hoist Operator (kg)</label><input type="number" id="hoistOp" value="80" min="0" max="200" step="0.5" oninput="calculate()"></div>
+            <div><label>Load on Hoist (kg)</label><input type="number" id="hoistLoad" value="0" min="0" max="300" step="0.5" oninput="calculate()"></div>
+          </div>
+          <div class="section-label">Cabin Seats Available</div>
+          <div id="hoistPaxArea"></div>
+        </div>
+      </div>
+
+      <!-- Cabin cargo (Pax / No Pax AFT configs) -->
+      <div id="secPaxCargo" class="card">
+        <div class="card-header"><span class="dot"></span>Cabin Cargo</div>
+        <div class="card-body">
+          <div class="field-row">
+            <div><label>Cargo Weight (kg)</label><input type="number" id="cabinCargo" min="0" max="500" step="0.5" placeholder="0" oninput="calculate()"></div>
+            <div><label>Cargo Arm (mm)</label><input type="number" id="cabinCargoArm" value="5000" min="1000" max="6000" step="1" oninput="calculate()"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Fuel -->
+      <div class="card">
+        <div class="card-header"><span class="dot"></span>Fuel</div>
+        <div class="card-body">
+          <div class="field-row">
+            <div>
+              <label>Main Fuel (kg)</label>
+              <input type="number" id="inpFuel" value="500" min="0" max="560" step="1" oninput="calculate()">
+              <div class="field-unit">Max 560.4 kg · arm varies</div>
+            </div>
+            <div>
+              <label>Aux Fuel (kg)</label>
+              <input type="number" id="inpAuxFuel" value="0" min="0" max="100" step="0.5" oninput="calculate()">
+              <div class="field-unit">Arm 5100 mm · Lat 0</div>
+            </div>
+          </div>
+          <div id="fuelInfo" class="info-note"></div>
+        </div>
+      </div>
+
+      <!-- Trim -->
+      <div class="card">
+        <div class="card-header"><span class="dot"></span>Trim Weights</div>
+        <div class="card-body">
+          <div class="field-row">
+            <div><label>Trim FWD (kg)</label><input type="number" id="trimFwd" min="0" max="50" step="0.5" placeholder="0" oninput="calculate()"><div class="field-unit">Arm 1202 mm</div></div>
+            <div><label>Trim AFT (kg)</label><input type="number" id="trimAft" min="0" max="50" step="0.5" placeholder="0" oninput="calculate()"><div class="field-unit">Lat +27 mm only</div></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /sidebar -->
+
+    <!-- =========== CONTENT =========== -->
+    <div class="content">
+
+      <div id="statusBanner" class="status-banner">— Calculating —</div>
+
+      <div class="result-grid">
+        <div class="result-item" id="ri-togw"><div class="result-label">Take-Off Gross Weight</div><div class="result-value" id="rv-togw">—</div><div class="result-sublabel" id="rs-togw">Max 2980 kg</div></div>
+        <div class="result-item" id="ri-zfw"><div class="result-label">Zero Fuel Weight</div><div class="result-value" id="rv-zfw">—</div><div class="result-sublabel" id="rs-zfw">—</div></div>
+        <div class="result-item" id="ri-cglong"><div class="result-label">Long CG (TOGW)</div><div class="result-value" id="rv-cglong">—</div><div class="result-sublabel" id="rs-cglong">—</div></div>
+        <div class="result-item" id="ri-cglat"><div class="result-label">Lateral CG (TOGW)</div><div class="result-value" id="rv-cglat">—</div><div class="result-sublabel" id="rs-cglat">Limits: −100 / +100 mm</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:290px 1fr;gap:12px;align-items:start">
+
+        <div class="card">
+          <div class="card-header"><span class="dot"></span>Limits Check</div>
+          <div class="card-body" style="padding:8px">
+            <table class="limit-table">
+              <thead><tr><th>Item</th><th>Actual</th><th>Limit</th><th>Status</th></tr></thead>
+              <tbody id="limitsBody"></tbody>
+            </table>
+            <div style="margin-top:10px">
+              <table class="w-table">
+                <thead><tr><th>Loading Item</th><th>Mass kg</th><th>Arm mm</th><th>Moment</th></tr></thead>
+                <tbody id="momentTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span class="dot"></span>CG Envelope — Longitudinal</div>
+          <div class="card-body">
+            <div class="chart-container"><canvas id="cgChart"></canvas></div>
+            <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:10px;color:#90caf9">
+              <span>🟢 ZFW CG</span><span>🔴 TOGW CG</span><span>── Fuel Burn Path</span><span>🔵 Envelope</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /mainApp -->
+
+<!-- ===================== SCRIPT ===================== -->
+<script>
+// ================================================================
+// CREDENTIALS  (change these for your unit)
+// ================================================================
+const PASSWORD = 'H135.SCL';
+
+// ================================================================
+// DATA
+// ================================================================
+const AIRCRAFT_LIST = [
+  { reg:'20201', sn:'2126', bem:1925.69, momL:8669546, momLat:14248 },
+  { reg:'20202', sn:'2130', bem:1901.70, momL:8589142, momLat:10400 },
+  { reg:'20203', sn:'2140', bem:1919.99, momL:8649417, momLat:14566 },
+  { reg:'20204', sn:'2155', bem:1929.19, momL:8688672, momLat:12018 },
+  { reg:'20205', sn:'2159', bem:1927.29, momL:8668945, momLat:10532 },
+  { reg:'20206', sn:'2162', bem:1924.99, momL:8666454, momLat:15840 },
+];
+const CONFIG_DELTAS = {
+  pax:      { dM:0,      dMomL:0,        dMomLat:0 },
+  noPaxAft: { dM:-32.20, dMomL:-39296,   dMomLat:-2707 },
+  cargo:    { dM:-34.70, dMomL:-127396,  dMomLat:-3848 },
+  hoistLH:  { dM:-34.70, dMomL:-127396,  dMomLat:-3848 },
+  hoistRH:  { dM:-34.70, dMomL:-127396,  dMomLat:-3848 },
+};
+const FUEL_MASS    = [8,16,24,32,40,48,56,64,72,80,88,96,104,112,120,128,136,144,152,160,168,176,184,192,200,208,216,224,232,240,248,256,264,272,280,288,296,304,312,320,328,336,344,352,360,368,376,384,392,400,408,416,424,432,440,448,456,464,472,480,488,496,504,512,520,528,536,544,552,560,560.4];
+const FUEL_ARM_L   = [4953,4960,4969,4978,4987,4996,5004,5011,5019,5026,5033,5040,4953,4877,4809,4751,4702,4659,4618,4583,4551,4523,4495,4471,4449,4429,4410,4393,4377,4362,4348,4335,4322,4310,4299,4289,4279,4270,4261,4252,4244,4237,4230,4223,4216,4210,4204,4198,4193,4187,4182,4179,4182,4185,4188,4190,4193,4195,4198,4200,4202,4204,4206,4209,4211,4213,4215,4217,4218,4220,4220];
+const FUEL_ARM_LAT = [-36,-36,-36,-36,-36,-36,-31,-27,-24,-22,-20,-18,-16,-15,-14,-13,-13,-12,-11,-11,-10,-10,-9,-9,-9,-8,-8,-8,-7,-7,-7,-7,-7,-6,-6,-6,-6,-6,-6,-5,-5,-5,-5,-5,-5,-5,-5,-5,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4,-4];
+
+const MAX_TOGW=2980, LAT_MIN=-100, LAT_MAX=100;
+const ENV_A={arm:4201,w:2980}, ENV_B={arm:4369,w:2980}, ENV_C={arm:4541,w:1700}, ENV_D={arm:4152,w:2039};
+
+// ================================================================
+// LOGIN
+// ================================================================
+let pwVisible = false;
+let loginAttempts = 0;
+
+function togglePw() {
+  pwVisible = !pwVisible;
+  const inp = document.getElementById('loginPass');
+  inp.type = pwVisible ? 'text' : 'password';
+  document.getElementById('pwToggle').textContent = pwVisible ? '🙈' : '👁';
+}
+
+function doLogin() {
+  const pass  = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  const btn   = document.getElementById('loginBtn');
+
+  errEl.textContent = '';
+
+  if (!pass) {
+    errEl.textContent = 'กรุณากรอกรหัสผ่าน';
+    return;
+  }
+  if (pass !== PASSWORD) {
+    loginAttempts++;
+    errEl.textContent = `รหัสผ่านไม่ถูกต้อง (ครั้งที่ ${loginAttempts})`;
+    document.getElementById('loginPass').value = '';
+    document.getElementById('loginPass').focus();
+    return;
+  }
+
+  // Success — start loading animation
+  btn.disabled = true;
+  btn.innerHTML = '<span class="btn-spinner"></span>กำลังโหลด...';
+  const prog = document.getElementById('loginProgress');
+  const bar  = document.getElementById('loginBar');
+  const stat = document.getElementById('loginStatus');
+  prog.classList.add('show');
+
+  const phases = [
+    { pct:20, msg:'กำลังตรวจสอบสิทธิ์...',   delay:0   },
+    { pct:45, msg:'กำลังโหลดข้อมูลเครื่องบิน...', delay:400 },
+    { pct:75, msg:'กำลังเตรียม W&B Engine...',  delay:800 },
+    { pct:95, msg:'กำลังเปิดโปรแกรม...',       delay:1200 },
+    { pct:100, msg:'เสร็จสิ้น!',               delay:1600 },
+  ];
+  phases.forEach(p => {
+    setTimeout(() => { bar.style.width = p.pct + '%'; stat.textContent = p.msg; }, p.delay);
+  });
+
+  setTimeout(() => {
+    document.getElementById('loginPage').classList.add('fade-out');
+    const app = document.getElementById('mainApp');
+    app.classList.remove('hidden');
+    setTimeout(() => app.classList.add('visible'), 50);
+    initApp();
+  }, 2000);
+}
+
+function doLogout() {
+  if (!confirm('ออกจากระบบ?')) return;
+  const app = document.getElementById('mainApp');
+  app.classList.remove('visible');
+  setTimeout(() => {
+    app.classList.add('hidden');
+    const lp = document.getElementById('loginPage');
+    lp.classList.remove('fade-out');
+    document.getElementById('loginPass').value = '';
+    document.getElementById('loginBar').style.width = '0%';
+    document.getElementById('loginStatus').textContent = '';
+    document.getElementById('loginProgress').classList.remove('show');
+    document.getElementById('loginBtn').disabled = false;
+    document.getElementById('loginBtn').textContent = 'เข้าสู่ระบบ';
+    document.getElementById('loginError').textContent = '';
+    document.getElementById('loginPass').focus();
+    loginAttempts = 0;
+  }, 500);
+}
+
+// ================================================================
+// HELPERS
+// ================================================================
+const v   = id => { const e=document.getElementById(id); return e?parseFloat(e.value)||0:0; };
+const el  = id => document.getElementById(id);
+
+function interpolateFuel(mass) {
+  if (mass <= 0) return {armL:0, armLat:0};
+  const n = FUEL_MASS.length;
+  if (mass >= FUEL_MASS[n-1]) return {armL:FUEL_ARM_L[n-1], armLat:FUEL_ARM_LAT[n-1]};
+  for (let i=1; i<n; i++) {
+    if (mass <= FUEL_MASS[i]) {
+      const r = (mass - FUEL_MASS[i-1]) / (FUEL_MASS[i] - FUEL_MASS[i-1]);
+      return { armL: FUEL_ARM_L[i-1] + r*(FUEL_ARM_L[i]-FUEL_ARM_L[i-1]),
+               armLat: FUEL_ARM_LAT[i-1] + r*(FUEL_ARM_LAT[i]-FUEL_ARM_LAT[i-1]) };
+    }
+  }
+  return {armL:FUEL_ARM_L[0], armLat:FUEL_ARM_LAT[0]};
+}
+const fwdLimit = w => 4152 + (w-2039)*(49/941);
+const aftLimit = w => 4369 + (w-2980)*(172/(-1280));
+
+function getAircraft() { return AIRCRAFT_LIST.find(a=>a.reg===el('selAircraft').value); }
+function getConfig()   { return el('selConfig').value; }
+function getBEM() {
+  const ac=getAircraft(), d=CONFIG_DELTAS[getConfig()];
+  const bem=ac.bem+d.dM, momL=ac.momL+d.dMomL, momLat=ac.momLat+d.dMomLat;
+  return {bem, momL, momLat, armL:momL/bem, armLat:momLat/bem};
+}
+
+// ================================================================
+// STATE
+// ================================================================
+let fwdDir = 'aft';
+let lastItems=[], lastTogw=0, lastCgL=0, lastCgLat=0, lastZfw=0, lastCgLzfw=0, lastCgLatZfw=0, lastFuelCG={armL:0,armLat:0};
+
+function setFwdDir(dir) {
+  fwdDir = dir;
+  el('btnFwdAft').classList.toggle('active', dir==='aft');
+  el('btnFwdFwd').classList.toggle('active', dir==='fwd');
+  calculate();
+}
+
+// ================================================================
+// CALCULATE
+// ================================================================
+function calculate() {
+  const cfg = getConfig();
+  const bem = getBEM();
+  const items = [];
+
+  items.push({name:'Basic Empty Mass', mass:bem.bem, armL:bem.armL, momL:bem.momL, armLat:bem.armLat, momLat:bem.momLat});
+
+  // Crew
+  const pilot=v('inpPilot'), cpilot=v('inpCopilot');
+  if (pilot>0)  items.push({name:'Pilot',    mass:pilot,  armL:2412, momL:pilot*2412,  armLat:390,  momLat:pilot*390});
+  if (cpilot>0) items.push({name:'Co-Pilot', mass:cpilot, armL:2412, momL:cpilot*2412, armLat:-390, momLat:cpilot*(-390)});
+
+  if (cfg==='pax'||cfg==='noPaxAft') {
+    const fwdArmL = fwdDir==='aft' ? 3331 : 3455;
+    const fwdLat  = [479, 0, -479];
+    [1,2,3].forEach((s,i) => {
+      const m=v('pax'+s);
+      if(m>0) items.push({name:'Pax S'+s, mass:m, armL:fwdArmL, momL:m*fwdArmL, armLat:fwdLat[i], momLat:m*fwdLat[i]});
+    });
+    if (cfg==='pax') {
+      const aftLat=[408,0,-408];
+      [4,5,6].forEach((s,i) => {
+        const m=v('pax'+s);
+        if(m>0) items.push({name:'Pax S'+s, mass:m, armL:4243, momL:m*4243, armLat:aftLat[i], momLat:m*aftLat[i]});
+      });
+    }
+    const cc=v('cabinCargo'), ca=v('cabinCargoArm');
+    if(cc>0) items.push({name:'Cabin Cargo', mass:cc, armL:ca, momL:cc*ca, armLat:0, momLat:0});
+
+  } else if (cfg==='cargo') {
+    const lat=v('cargoLat');
+    const cf=v('cargoFwd'), cm=v('cargoMid'), ca=v('cargoAft');
+    if(cf>0) items.push({name:'Cargo FWD', mass:cf, armL:3550, momL:cf*3550, armLat:lat, momLat:cf*lat});
+    if(cm>0) items.push({name:'Cargo Mid', mass:cm, armL:4250, momL:cm*4250, armLat:lat, momLat:cm*lat});
+    if(ca>0) items.push({name:'Cargo AFT', mass:ca, armL:4950, momL:ca*4950, armLat:lat, momLat:ca*lat});
+
+  } else if (cfg==='hoistLH'||cfg==='hoistRH') {
+    const lat = cfg==='hoistLH' ? -1000 : 1000;
+    const combined = v('hoistOp')+v('hoistLoad');
+    if(combined>0) items.push({name:'Hoist Op+Load', mass:combined, armL:3800, momL:combined*3800, armLat:lat, momLat:combined*lat});
+    const aftLat=[408,0,-408];
+    ['h1','h2','h3'].forEach((id,i) => {
+      const m=v(id);
+      if(m>0) items.push({name:'Pax S'+(i+4), mass:m, armL:4243, momL:m*4243, armLat:aftLat[i], momLat:m*aftLat[i]});
+    });
+    const fp=v('hoistFwdPax');
+    if(fp>0) {
+      const fal = cfg==='hoistLH' ? 479 : -479;
+      items.push({name:'Pax FWD Single', mass:fp, armL:3331, momL:fp*3331, armLat:fal, momLat:fp*fal});
+    }
+  }
+
+  // Fuel
+  const fuel = Math.min(v('inpFuel'), 560.4);
+  const fuelCG = interpolateFuel(fuel);
+  if(fuel>0) items.push({name:`Fuel (${fuel.toFixed(0)} kg)`, mass:fuel, armL:fuelCG.armL, momL:fuel*fuelCG.armL, armLat:fuelCG.armLat, momLat:fuel*fuelCG.armLat});
+  const aux=v('inpAuxFuel');
+  if(aux>0) items.push({name:'Aux Fuel', mass:aux, armL:5100, momL:aux*5100, armLat:0, momLat:0});
+
+  // Trim
+  const tf=v('trimFwd'), ta=v('trimAft');
+  if(tf>0) items.push({name:'Trim FWD', mass:tf, armL:1202, momL:tf*1202, armLat:0, momLat:0});
+  if(ta>0) items.push({name:'Trim AFT', mass:ta, armL:0, momL:0, armLat:27, momLat:ta*27});
+
+  // Totals
+  const totMass   = items.reduce((s,i)=>s+i.mass,  0);
+  const totMomL   = items.reduce((s,i)=>s+i.momL,  0);
+  const totMomLat = items.reduce((s,i)=>s+i.momLat, 0);
+  const cgL   = totMass>0 ? totMomL/totMass   : 0;
+  const cgLat = totMass>0 ? totMomLat/totMass : 0;
+
+  // ZFW
+  const fuelNames=['Fuel','Aux Fuel'];
+  const zfwItems = items.filter(i=>!fuelNames.some(f=>i.name.startsWith(f)));
+  const zfwMass   = zfwItems.reduce((s,i)=>s+i.mass,  0);
+  const zfwMomL   = zfwItems.reduce((s,i)=>s+i.momL,  0);
+  const zfwMomLat = zfwItems.reduce((s,i)=>s+i.momLat, 0);
+  const cgLzfw   = zfwMass>0 ? zfwMomL/zfwMass   : 0;
+  const cgLatZfw = zfwMass>0 ? zfwMomLat/zfwMass : 0;
+
+  // Store for PDF
+  lastItems=items; lastTogw=totMass; lastCgL=cgL; lastCgLat=cgLat;
+  lastZfw=zfwMass; lastCgLzfw=cgLzfw; lastCgLatZfw=cgLatZfw; lastFuelCG=fuelCG;
+
+  updateUI(items, totMass, cgL, cgLat, zfwMass, cgLzfw, cgLatZfw, fuel, fuelCG);
+  updateChart(totMass, cgL, zfwMass, cgLzfw);
+}
+
+// ================================================================
+// UI UPDATE
+// ================================================================
+function updateUI(items, togw, cgL, cgLat, zfw, cgLzfw, cgLatZfw, fuel, fuelCG) {
+  const fw=fwdLimit(togw), af=aftLimit(togw);
+  const fwZ=fwdLimit(zfw), afZ=aftLimit(zfw);
+  const overW   = togw>MAX_TOGW;
+  const longOK  = cgL>=fw   && cgL<=af   && !overW;
+  const longZOK = cgLzfw>=fwZ && cgLzfw<=afZ;
+  const latOK   = cgLat>=LAT_MIN && cgLat<=LAT_MAX;
+  const latZOK  = cgLatZfw>=LAT_MIN && cgLatZfw<=LAT_MAX;
+  const allOK   = !overW && longOK && longZOK && latOK && latZOK;
+
+  const sb=el('statusBanner');
+  if (overW)      { sb.className='status-banner status-danger'; sb.textContent='⚠  WEIGHT EXCEEDED — NOT AIRWORTHY'; }
+  else if(!allOK) { sb.className='status-banner status-warn';   sb.textContent='⚠  CG OUT OF LIMITS — CHECK LOADING'; }
+  else            { sb.className='status-banner status-ok';     sb.textContent='✔  WITHIN LIMITS — AIRWORTHY'; }
+
+  setTile('ri-togw','rv-togw','rs-togw', togw.toFixed(1)+' kg', overW?'danger':'ok', `Max ${MAX_TOGW} kg · ZFW ${zfw.toFixed(1)} kg`);
+  setTile('ri-zfw', 'rv-zfw', 'rs-zfw',  zfw.toFixed(1)+' kg',  'ok', 'Zero Fuel Weight');
+  setTile('ri-cglong','rv-cglong','rs-cglong', cgL.toFixed(1)+' <span class="result-unit">mm</span>', longOK?'ok':'danger', `Fwd ${fw.toFixed(0)} / Aft ${af.toFixed(0)} mm`);
+  setTile('ri-cglat', 'rv-cglat', 'rs-cglat', cgLat.toFixed(2)+' <span class="result-unit">mm</span>', latOK?'ok':'danger', `Limits: ${LAT_MIN} / +${LAT_MAX} mm`);
+
+  el('limitsBody').innerHTML = [
+    ['TOGW',         togw.toFixed(1)+' kg',      '≤ '+MAX_TOGW+' kg',              !overW],
+    ['Long CG TOGW', cgL.toFixed(1)+' mm',        `${fw.toFixed(0)}–${af.toFixed(0)} mm`,   longOK],
+    ['Long CG ZFW',  cgLzfw.toFixed(1)+' mm',     `${fwZ.toFixed(0)}–${afZ.toFixed(0)} mm`, longZOK],
+    ['Lat CG TOGW',  cgLat.toFixed(2)+' mm',      '−100 to +100 mm',               latOK],
+    ['Lat CG ZFW',   cgLatZfw.toFixed(2)+' mm',   '−100 to +100 mm',               latZOK],
+    ['Fuel',         fuel.toFixed(0)+' kg',        '≤ 560.4 kg',                    fuel<=560.4],
+  ].map(([n,a,l,ok])=>`<tr><td>${n}</td><td class="txt-val">${a}</td><td>${l}</td><td class="${ok?'txt-ok':'txt-err'}">${ok?'OK':'FAIL'}</td></tr>`).join('');
+
+  el('momentTable').innerHTML = items.map(i=>`<tr><td>${i.name}</td><td>${i.mass.toFixed(1)}</td><td>${i.armL.toFixed(0)}</td><td>${i.momL.toFixed(0)}</td></tr>`).join('')+
+    `<tr class="total"><td>TOTAL</td><td>${togw.toFixed(1)}</td><td>${cgL.toFixed(1)}</td><td>${items.reduce((s,i)=>s+i.momL,0).toFixed(0)}</td></tr>`;
+
+  el('fuelInfo').textContent = fuel>0 ? `Fuel CG: Long ${fuelCG.armL.toFixed(0)} mm · Lat ${fuelCG.armLat.toFixed(1)} mm` : '';
+}
+
+function setTile(cardId,valId,subId,val,state,sub) {
+  el(valId).innerHTML=val; if(subId) el(subId).textContent=sub||'';
+  el(cardId).className='result-item '+(state||'');
+}
+
+// ================================================================
+// CHART
+// ================================================================
+let cgChart=null;
+function initChart() {
+  const ctx=el('cgChart').getContext('2d');
+  const envPts=[ENV_A,ENV_B,ENV_C,ENV_D,ENV_A].map(p=>({x:p.arm,y:p.w}));
+  cgChart=new Chart(ctx,{
+    type:'scatter',
+    data:{datasets:[
+      {label:'Envelope',    data:envPts, showLine:true, borderColor:'#4fc3f7', backgroundColor:'rgba(79,195,247,.07)', pointRadius:3, pointBackgroundColor:'#4fc3f7', borderWidth:2, fill:true},
+      {label:'MTOW',        data:[{x:3900,y:MAX_TOGW},{x:4700,y:MAX_TOGW}], showLine:true, borderColor:'rgba(239,83,80,.5)', pointRadius:0, borderDash:[6,4], borderWidth:1.5},
+      {label:'ZFW CG',      data:[], pointRadius:10, pointBackgroundColor:'#66bb6a', pointBorderColor:'#fff', pointBorderWidth:2, showLine:false},
+      {label:'TOGW CG',     data:[], pointRadius:10, pointBackgroundColor:'#ef5350', pointBorderColor:'#fff', pointBorderWidth:2, showLine:false},
+      {label:'Fuel Path',   data:[], showLine:true, borderColor:'rgba(255,183,77,.8)', borderDash:[4,4], pointRadius:0, borderWidth:1.5},
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:{duration:150},
+      scales:{
+        x:{title:{display:true,text:'Longitudinal Arm (mm)',color:'#90caf9',font:{size:11}}, min:3900,max:4700, ticks:{color:'#90caf9',stepSize:50}, grid:{color:'rgba(42,58,92,.8)'}, border:{color:'#2a3a5c'}},
+        y:{title:{display:true,text:'Weight (kg)',color:'#90caf9',font:{size:11}},           min:1400,max:3200, ticks:{color:'#90caf9',stepSize:200}, grid:{color:'rgba(42,58,92,.8)'}, border:{color:'#2a3a5c'}}
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#1e2a42',borderColor:'#2a7fd4',borderWidth:1,titleColor:'#4fc3f7',bodyColor:'#e0e6f0',
+          callbacks:{label:c=>c.raw&&c.raw.x!==undefined?` Arm: ${c.raw.x.toFixed(1)} mm | Wt: ${c.raw.y.toFixed(1)} kg`:''}}
+      }
+    }
+  });
+}
+function updateChart(togwMass,cgL,zfwMass,cgLzfw) {
+  if(!cgChart) return;
+  cgChart.data.datasets[2].data=[{x:cgLzfw,y:zfwMass}];
+  cgChart.data.datasets[3].data=[{x:cgL,y:togwMass}];
+  cgChart.data.datasets[4].data=[{x:cgLzfw,y:zfwMass},{x:cgL,y:togwMass}];
+  cgChart.update();
+}
+
+// ================================================================
+// CONFIG CHANGE
+// ================================================================
+function onAircraftChange() { updateBEMInfo(); calculate(); }
+function onConfigChange() {
+  const cfg=getConfig();
+  el('secPax').classList.toggle('hidden',     cfg==='cargo'||cfg==='hoistLH'||cfg==='hoistRH');
+  el('aftRow').classList.toggle('hidden',      cfg==='noPaxAft');
+  el('fwdDirRow').classList.toggle('hidden',   cfg==='cargo');
+  el('secCargo').classList.toggle('hidden',    cfg!=='cargo');
+  el('secHoist').classList.toggle('hidden',    cfg!=='hoistLH'&&cfg!=='hoistRH');
+  el('secPaxCargo').classList.toggle('hidden', cfg==='cargo'||cfg==='hoistLH'||cfg==='hoistRH');
+  if (cfg==='hoistLH'||cfg==='hoistRH') {
+    const side=cfg==='hoistLH'?'LEFT (Lat −1000 mm)':'RIGHT (Lat +1000 mm)';
+    el('hoistInfo').textContent=`Hoist: Long 3800 mm · ${side}`;
+    const fwdLabel=cfg==='hoistLH'?'FWD Seat 1 (RH available)':'FWD Seat 3 (LH available)';
+    el('hoistPaxArea').innerHTML=`
+      <div class="field-row" style="margin-bottom:6px">
+        <div><label>AFT S4 RH (kg)</label><input type="number" id="h1" min="0" max="200" step="0.5" placeholder="0" oninput="calculate()"></div>
+        <div><label>AFT S5 CTR (kg)</label><input type="number" id="h2" min="0" max="200" step="0.5" placeholder="0" oninput="calculate()"></div>
+      </div>
+      <div class="field-row">
+        <div><label>AFT S6 LH (kg)</label><input type="number" id="h3" min="0" max="200" step="0.5" placeholder="0" oninput="calculate()"></div>
+        <div><label>${fwdLabel}</label><input type="number" id="hoistFwdPax" min="0" max="200" step="0.5" placeholder="0" oninput="calculate()"></div>
+      </div>`;
+  }
+  updateBEMInfo(); calculate();
+}
+function updateBEMInfo() {
+  const b=getBEM(); const ac=getAircraft();
+  el('bemInfo').textContent=`BEM: ${b.bem.toFixed(2)} kg  ·  Long Arm: ${b.armL.toFixed(1)} mm  ·  Lat Arm: ${b.armLat.toFixed(2)} mm`;
+}
+
+// ================================================================
+// PDF EXPORT
+// ================================================================
+function exportPDF() {
+  if (!window.jspdf) { alert('jsPDF ยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วลองใหม่'); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const W=210, M=14;
+
+  const ac    = getAircraft();
+  const cfg   = getConfig();
+  const cfgLabels = {pax:'Pax FWD & AFT', noPaxAft:'No Pax AFT', cargo:'Cargo', hoistLH:'Hoist LH', hoistRH:'Hoist RH'};
+  const dateStr = el('inpDate').value || new Date().toISOString().slice(0,10);
+  const flt     = el('inpFlight').value || '—';
+
+  // Envelope status
+  const fw=fwdLimit(lastTogw), af=aftLimit(lastTogw);
+  const fwZ=fwdLimit(lastZfw), afZ=aftLimit(lastZfw);
+  const longOK = lastCgL>=fw && lastCgL<=af && lastTogw<=MAX_TOGW;
+  const latOK  = lastCgLat>=LAT_MIN && lastCgLat<=LAT_MAX;
+  const allOK  = longOK && fwdLimit(lastZfw)<=lastCgLzfw && lastCgLzfw<=afZ && latOK && lastCgLatZfw>=LAT_MIN && lastCgLatZfw<=LAT_MAX;
+
+  // === HEADER BAND ===
+  doc.setFillColor(13,59,122);
+  doc.rect(0,0,W,22,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(15); doc.setFont('helvetica','bold');
+  doc.text('EC135 T3H  WEIGHT & BALANCE RECORD', W/2, 10, {align:'center'});
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  doc.text('SQDN.202, WING 2 RTAF  |  RESTRICTED – FOR AIRCREW USE ONLY', W/2, 17, {align:'center'});
+
+  // STATUS badge
+  const badgeColor = allOK ? [27,94,32] : [183,28,28];
+  const badgeText  = allOK ? 'WITHIN LIMITS' : 'OUT OF LIMITS';
+  doc.setFillColor(...badgeColor);
+  doc.roundedRect(W-M-36, 3, 36, 9, 2, 2, 'F');
+  doc.setFontSize(8); doc.setFont('helvetica','bold');
+  doc.text(badgeText, W-M-18, 8.5, {align:'center'});
+
+  let y=27;
+
+  // === AIRCRAFT INFO BOX ===
+  doc.setDrawColor(200,210,230); doc.setFillColor(240,245,252);
+  doc.roundedRect(M, y, W-2*M, 20, 2, 2, 'FD');
+  doc.setTextColor(30,60,120); doc.setFontSize(8); doc.setFont('helvetica','bold');
+  const infoLeft  = M+4;
+  const infoRight = W/2+2;
+  const ir = (lbl,val,x,row) => {
+    const yy=y+4+row*5;
+    doc.setFont('helvetica','bold'); doc.text(lbl+': ', x, yy);
+    doc.setFont('helvetica','normal'); doc.setTextColor(0,0,0);
+    const lw=doc.getTextWidth(lbl+': ');
+    doc.text(val, x+lw, yy);
+    doc.setTextColor(30,60,120);
+  };
+  ir('Registration', ac.reg,                  infoLeft,  0);
+  ir('S/N',          ac.sn,                   infoLeft,  1);
+  ir('BEM',          getBEM().bem.toFixed(2)+' kg', infoLeft, 2);
+  ir('Date',         dateStr,                 infoRight, 0);
+  ir('Flight #',     flt,                     infoRight, 1);
+  ir('Config',       cfgLabels[cfg]||cfg,     infoRight, 2);
+  y+=24;
+
+  // === LOADING MANIFEST TABLE ===
+  doc.setTextColor(0,0,0);
+  doc.autoTable({
+    startY: y,
+    head: [['Loading Item','Mass (kg)','Long Arm (mm)','Long Moment (kg·mm)','Lat Arm (mm)','Lat Moment']],
+    body: [
+      ...lastItems.map(i=>[i.name, i.mass.toFixed(1), i.armL.toFixed(0), i.momL.toFixed(0), i.armLat.toFixed(1), i.momLat.toFixed(0)]),
+      ['TOTAL / CG',
+        lastTogw.toFixed(1),
+        lastCgL.toFixed(1),
+        lastItems.reduce((s,i)=>s+i.momL,0).toFixed(0),
+        lastCgLat.toFixed(2),
+        lastItems.reduce((s,i)=>s+i.momLat,0).toFixed(0)
+      ]
+    ],
+    theme:'grid',
+    headStyles:{fillColor:[13,59,122], textColor:255, fontSize:7, fontStyle:'bold', halign:'center'},
+    bodyStyles:{fontSize:7, halign:'right'},
+    columnStyles:{0:{halign:'left', cellWidth:48}},
+    footStyles:{fillColor:[13,59,122]},
+    alternateRowStyles:{fillColor:[245,248,255]},
+    rowPageBreak:'avoid',
+    styles:{lineColor:[200,210,230]},
+    didParseCell(d) {
+      if(d.row.index===lastItems.length) {
+        d.cell.styles.fillColor=[13,59,122];
+        d.cell.styles.textColor=255;
+        d.cell.styles.fontStyle='bold';
+      }
+    }
+  });
+  y = doc.lastAutoTable.finalY + 6;
+
+  // === CG SUMMARY TABLE ===
+  doc.autoTable({
+    startY: y,
+    head: [['Parameter','TOGW','ZFW']],
+    body: [
+      ['Total Mass (kg)',        lastTogw.toFixed(1),    lastZfw.toFixed(1)],
+      ['Long CG Arm (mm)',       lastCgL.toFixed(1),     lastCgLzfw.toFixed(1)],
+      ['Fwd Limit (mm)',         fwdLimit(lastTogw).toFixed(0), fwdLimit(lastZfw).toFixed(0)],
+      ['Aft Limit (mm)',         aftLimit(lastTogw).toFixed(0), aftLimit(lastZfw).toFixed(0)],
+      ['Long CG Status',         longOK?'PASS':'FAIL',   (lastCgLzfw>=fwZ&&lastCgLzfw<=afZ)?'PASS':'FAIL'],
+      ['Lateral CG (mm)',        lastCgLat.toFixed(2),   lastCgLatZfw.toFixed(2)],
+      ['Lat Limit',              '−100 to +100 mm',      '−100 to +100 mm'],
+      ['Lat CG Status',          latOK?'PASS':'FAIL',    (lastCgLatZfw>=LAT_MIN&&lastCgLatZfw<=LAT_MAX)?'PASS':'FAIL'],
+    ],
+    theme:'grid',
+    headStyles:{fillColor:[26,74,138],textColor:255,fontSize:7,fontStyle:'bold',halign:'center'},
+    bodyStyles:{fontSize:7, halign:'center'},
+    columnStyles:{0:{halign:'left',cellWidth:55}},
+    alternateRowStyles:{fillColor:[245,248,255]},
+    styles:{lineColor:[200,210,230]},
+    didParseCell(d) {
+      const passCols=[1,2]; const statusRows=[4,7];
+      if(statusRows.includes(d.row.index) && passCols.includes(d.column.index)) {
+        d.cell.styles.fillColor = d.cell.raw==='PASS' ? [200,240,210] : [255,210,210];
+        d.cell.styles.fontStyle = 'bold';
+      }
+    }
+  });
+  y = doc.lastAutoTable.finalY + 6;
+
+  // === CG ENVELOPE CHART IMAGE ===
+  try {
+    const canvas = el('cgChart');
+    const imgData = canvas.toDataURL('image/png');
+    const remainH = 297-y-20;
+    const imgH = Math.min(remainH, 75);
+    const imgW = imgH * (canvas.width/canvas.height);
+    const cx = (W-imgW)/2;
+    if (y+imgH < 290) {
+      doc.setDrawColor(200,210,230); doc.setFillColor(245,248,255);
+      doc.roundedRect(M, y-1, W-2*M, imgH+8, 2, 2, 'FD');
+      doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(13,59,122);
+      doc.text('CG ENVELOPE — LONGITUDINAL', M+4, y+4);
+      doc.addImage(imgData,'PNG', cx, y+6, imgW, imgH-6);
+      y += imgH+12;
+    }
+  } catch(e) { /* chart capture failed, continue */ }
+
+  // === SIGNATURE BLOCK ===
+  if (y+28 < 285) {
+    doc.setDrawColor(200,210,230); doc.setFillColor(250,252,255);
+    doc.roundedRect(M, y, W-2*M, 26, 2, 2, 'FD');
+    doc.setFontSize(7); doc.setFont('helvetica','bold'); doc.setTextColor(13,59,122);
+    doc.text('REMARKS:', M+4, y+5);
+    doc.setDrawColor(180,200,220); doc.line(M+4, y+10, W-M-4, y+10);
+    doc.line(M+4, y+15, W-M-4, y+15);
+    doc.text('Prepared by:', M+4, y+22);
+    doc.line(M+28, y+22, M+80, y+22);
+    doc.text('Verified by:', W/2+2, y+22);
+    doc.line(W/2+22, y+22, W-M-4, y+22);
+  }
+
+  // === FOOTER ===
+  const pageH=297;
+  doc.setFillColor(13,59,122); doc.rect(0,pageH-8,W,8,'F');
+  doc.setTextColor(200,220,255); doc.setFontSize(6); doc.setFont('helvetica','normal');
+  doc.text('SQDN.202 WING 2 RTAF  |  EC135 T3H W&B Calculator  |  Generated: '+new Date().toLocaleString('th-TH'), W/2, pageH-3, {align:'center'});
+
+  // Save
+  const fname = `WB_${ac.reg}_${dateStr.replace(/-/g,'')}_${flt.replace(/[^a-zA-Z0-9]/g,'')}.pdf`;
+  doc.save(fname);
+}
+
+// ================================================================
+// INIT APP (called after login)
+// ================================================================
+function initApp() {
+  const today = new Date().toISOString().slice(0,10);
+  el('inpDate').value = today;
+  el('headerDate').textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+  initChart();
+  onConfigChange();
+}
+
+// ================================================================
+// INIT PAGE (login focus)
+// ================================================================
+window.addEventListener('load', () => {
+  document.getElementById('loginPass').focus();
+});
+</script>
+</body>
+</html>
